@@ -26,12 +26,14 @@ public class BracketService {
     }
 
     public List<Tournament> initializeTournament(List<Player> players) {
-        List<List<Match>> orRoundMatches = buildOrRounds(players);
-        Tournament or     = buildTournament("Or",     1, orRoundMatches, false);
+        List<List<Match>> orRounds = buildOrRounds(players);
+        int nbPlayers = players.size();
+
+        Tournament or     = buildTournament("Or",     1, orRounds, false);
         Tournament argent = buildTournament("Argent", 2,
-                buildLoserRounds(orRoundMatches, "Or"), true);
+                buildLoserRounds(nbPlayers, "Or"), true);
         Tournament bronze = buildTournament("Bronze", 3,
-                buildLoserRounds(extractRounds(argent), "Argent"), true);
+                buildLoserRounds(nbPlayers / 2, "Argent"), true);
 
         tournamentRepository.save(or);
         tournamentRepository.save(argent);
@@ -57,7 +59,6 @@ public class BracketService {
 
     private List<List<Match>> buildOrRounds(List<Player> players) {
         List<List<Match>> rounds = new ArrayList<>();
-
         List<Match> r1 = new ArrayList<>();
         for (int i = 0; i < players.size(); i += 2) {
             Match m = new Match(i / 2);
@@ -71,7 +72,6 @@ public class BracketService {
             r1.add(m);
         }
         rounds.add(r1);
-
         List<Match> prev = r1;
         while (prev.size() > 1) {
             int count = (int) Math.ceil(prev.size() / 2.0);
@@ -80,53 +80,63 @@ public class BracketService {
             rounds.add(next);
             prev = next;
         }
-
         return rounds;
     }
 
-    private List<List<Match>> buildLoserRounds(List<List<Match>> upperRounds, String upperName) {
+    /**
+     * Structure double-élimination loser bracket :
+     *
+     * R0 (interne) : nbPlayers/2 perdants s'affrontent → nbPlayers/4 matchs
+     * R1 (drop)    : gagnants R0 + nbPlayers/4 nouveaux perdants WB
+     * R2 (interne) : gagnants R1 s'affrontent
+     * R3 (drop)    : gagnants R2 + nouveaux perdants WB
+     * ...
+     * Dernière étape : 1 match = finale loser
+     *
+     * Tours pairs  = internes  (2 gagnants LB → 1)
+     * Tours impairs = drop     (1 gagnant LB + 1 perdant WB)
+     */
+    private List<List<Match>> buildLoserRounds(int nbPlayers, String upperName) {
         List<List<Match>> rounds = new ArrayList<>();
 
-        List<Integer> upperLosers = new ArrayList<>();
-        for (List<Match> r : upperRounds) {
-            upperLosers.add((int) r.stream().filter(m -> !m.isBye()).count());
-        }
+        // Nombre de matchs au premier tour interne
+        int matchCount = Math.max(1, nbPlayers / 4);
+        // Nombre de "vagues" de perdants WB encore à intégrer
+        // WB R0 → LB R0, WB R1 → LB R1, WB R2 → LB R3, etc.
+        int wbRound = 1; // prochain round WB dont les perdants arrivent
 
-        int matchCount = (int) Math.ceil(upperLosers.get(0) / 2.0);
-        List<Match> t0 = new ArrayList<>();
+        // R0 : interne — perdants WB T1 s'affrontent
+        List<Match> r0 = new ArrayList<>();
         for (int i = 0; i < matchCount; i++) {
-            t0.add(new Match(i, "↓ " + upperName + " T1", "↓ " + upperName + " T1"));
+            r0.add(new Match(i, "↓ " + upperName + " T1", "↓ " + upperName + " T1"));
         }
-        rounds.add(t0);
+        rounds.add(r0);
 
-        int upperTourIdx = 1;
-        while (matchCount > 1 || upperTourIdx < upperLosers.size()) {
-            boolean isInternalTour = (rounds.size() % 2 == 0);
-            if (isInternalTour) {
-                int prevCount = rounds.get(rounds.size() - 1).size();
-                int newCount  = (int) Math.ceil(prevCount / 2.0);
-                int tNum      = rounds.size();
-                List<Match> round = new ArrayList<>();
-                for (int i = 0; i < newCount; i++) {
-                    round.add(new Match(i, "← Gagnant T" + tNum, "← Gagnant T" + tNum));
+        while (matchCount > 1) {
+            int roundIdx = rounds.size();
+
+            if (roundIdx % 2 == 1) {
+                // Tour drop : chaque gagnant LB précédent reçoit un perdant WB
+                String dropLabel = "↓ " + upperName + " T" + (wbRound + 1);
+                List<Match> drop = new ArrayList<>();
+                for (int i = 0; i < matchCount; i++) {
+                    drop.add(new Match(i, "← Gagnant T" + roundIdx, dropLabel));
                 }
-                rounds.add(round);
-                matchCount = newCount;
+                rounds.add(drop);
+                wbRound++;
             } else {
-                int prevCount  = rounds.get(rounds.size() - 1).size();
-                int tNum       = rounds.size();
-                String dropLbl = upperTourIdx < upperLosers.size()
-                        ? "↓ " + upperName + " T" + (upperTourIdx + 1)
-                        : "↓ " + upperName + " T?";
-                List<Match> round = new ArrayList<>();
-                for (int i = 0; i < prevCount; i++) {
-                    round.add(new Match(i, "← Gagnant T" + tNum, dropLbl));
+                // Tour interne : les gagnants du drop s'affrontent 2 par 2
+                int newCount = (int) Math.ceil(matchCount / 2.0);
+                List<Match> internal = new ArrayList<>();
+                int tNum = rounds.size();
+                for (int i = 0; i < newCount; i++) {
+                    internal.add(new Match(i,
+                            "← Gagnant T" + tNum,
+                            "← Gagnant T" + tNum));
                 }
-                rounds.add(round);
-                matchCount = prevCount;
-                upperTourIdx++;
+                rounds.add(internal);
+                matchCount = newCount;
             }
-            if (matchCount == 1 && upperTourIdx >= upperLosers.size()) break;
         }
 
         return rounds;
@@ -142,13 +152,5 @@ public class BracketService {
             t.addRound(round);
         }
         return t;
-    }
-
-    private List<List<Match>> extractRounds(Tournament t) {
-        List<List<Match>> result = new ArrayList<>();
-        for (TournamentRound round : t.getRounds()) {
-            result.add(new ArrayList<>(round.getMatches()));
-        }
-        return result;
     }
 }
