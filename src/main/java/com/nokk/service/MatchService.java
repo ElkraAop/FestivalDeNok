@@ -65,44 +65,41 @@ public class MatchService {
         return toDto(tournamentRepository.findByIdFull(dto.getTournamentId()).orElseThrow());
     }
 
-    private void dropLoser(Long fromTournamentId, int roundIndex, int matchIndex, Player loser) {
+    private int wbToLbRoundIndex(int wbRoundIndex) {
+        return wbRoundIndex == 0 ? 0 : 2 * wbRoundIndex - 1;
+    }
+
+    private void dropLoser(Long fromTournamentId, int wbRoundIndex, int wbMatchIndex, Player loser) {
         Tournament from = tournamentRepository.findByIdFull(fromTournamentId).orElseThrow();
         Tournament target = tournamentRepository.findByLevelFull(from.getLevel() + 1).orElse(null);
         if (target == null) return;
 
-        if (roundIndex >= target.getRounds().size()) return;
+        int lbRoundIndex = wbToLbRoundIndex(wbRoundIndex);
 
         TournamentRound targetRound = target.getRounds().stream()
-                .filter(r -> r.getRoundIndex() == roundIndex)
+                .filter(r -> r.getRoundIndex() == lbRoundIndex)
                 .findFirst().orElse(null);
         if (targetRound == null) return;
 
         List<Match> matches = targetRound.getMatches().stream().toList();
 
-        if (roundIndex == 0) {
+        if (lbRoundIndex == 0) {
             for (Match m : matches) {
                 if (m.isFinished()) continue;
                 if (m.getTeamA() == null) { m.setTeamA(loser); break; }
-            }
-            if (matches.stream().noneMatch(m -> loser.equals(m.getTeamA()))) {
-                for (Match m : matches) {
-                    if (m.isFinished()) continue;
-                    if (m.getTeamB() == null) { m.setTeamB(loser); break; }
-                }
+                if (m.getTeamB() == null) { m.setTeamB(loser); break; }
             }
         } else {
-            if (matchIndex < matches.size()) {
-                Match m = matches.stream()
-                        .filter(x -> x.getMatchIndex() == matchIndex)
-                        .findFirst().orElse(null);
-                if (m != null && !m.isFinished() && m.getTeamB() == null) {
-                    m.setTeamB(loser);
-                } else {
-                    for (Match fallback : matches) {
-                        if (!fallback.isFinished() && fallback.getTeamB() == null) {
-                            fallback.setTeamB(loser);
-                            break;
-                        }
+            Match direct = matches.stream()
+                    .filter(m -> m.getMatchIndex() == wbMatchIndex)
+                    .findFirst().orElse(null);
+            if (direct != null && !direct.isFinished() && direct.getTeamB() == null) {
+                direct.setTeamB(loser);
+            } else {
+                for (Match fallback : matches) {
+                    if (!fallback.isFinished() && fallback.getTeamB() == null) {
+                        fallback.setTeamB(loser);
+                        break;
                     }
                 }
             }
@@ -111,13 +108,15 @@ public class MatchService {
         tournamentRepository.save(target);
     }
 
-    private void removeFromLowerBracket(Long fromTournamentId, int roundIndex, Player player) {
+    private void removeFromLowerBracket(Long fromTournamentId, int wbRoundIndex, Player player) {
         Tournament from = tournamentRepository.findByIdFull(fromTournamentId).orElseThrow();
         Tournament target = tournamentRepository.findByLevelFull(from.getLevel() + 1).orElse(null);
         if (target == null) return;
 
+        int lbRoundIndex = wbToLbRoundIndex(wbRoundIndex);
+
         TournamentRound targetRound = target.getRounds().stream()
-                .filter(r -> r.getRoundIndex() == roundIndex)
+                .filter(r -> r.getRoundIndex() == lbRoundIndex)
                 .findFirst().orElse(null);
         if (targetRound == null) return;
 
@@ -166,7 +165,6 @@ public class MatchService {
             if (next == null || next.isFinished()) return;
             if (fromMatchIdx % 2 == 0) next.setTeamA(winner);
             else                        next.setTeamB(winner);
-
         } else {
             if (nextRound.isDropRound()) {
                 Match next = nextRound.getMatches().stream()
