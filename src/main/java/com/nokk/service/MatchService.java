@@ -65,11 +65,13 @@ public class MatchService {
         return toDto(tournamentRepository.findByIdFull(dto.getTournamentId()).orElseThrow());
     }
 
+    // WB R0 → LB R0, WB R1 → LB R1, WB R2 → LB R3, WB Rn → LB R(2n-1)
     private int wbToLbRoundIndex(int wbRoundIndex) {
         return wbRoundIndex == 0 ? 0 : 2 * wbRoundIndex - 1;
     }
 
-    private void dropLoser(Long fromTournamentId, int wbRoundIndex, int wbMatchIndex, Player loser) {
+    private void dropLoser(Long fromTournamentId, int wbRoundIndex,
+                           int wbMatchIndex, Player loser) {
         Tournament from = tournamentRepository.findByIdFull(fromTournamentId).orElseThrow();
         Tournament target = tournamentRepository.findByLevelFull(from.getLevel() + 1).orElse(null);
         if (target == null) return;
@@ -81,23 +83,32 @@ public class MatchService {
                 .findFirst().orElse(null);
         if (targetRound == null) return;
 
-        List<Match> matches = targetRound.getMatches().stream().toList();
+        List<Match> matches = targetRound.getMatches().stream()
+                .sorted((a, b) -> Integer.compare(a.getMatchIndex(), b.getMatchIndex()))
+                .toList();
 
         if (lbRoundIndex == 0) {
+            // R0 interne : on remplit teamA puis teamB dans l'ordre
             for (Match m : matches) {
-                if (m.isFinished()) continue;
+                if (m.isFinished() || m.isBye()) continue;
                 if (m.getTeamA() == null) { m.setTeamA(loser); break; }
                 if (m.getTeamB() == null) { m.setTeamB(loser); break; }
             }
         } else {
+            // Tours drop : le perdant WB[wbMatchIndex] → LB[wbMatchIndex] en teamB
+            // Si le match direct est déjà pris, on cherche le premier libre
             Match direct = matches.stream()
-                    .filter(m -> m.getMatchIndex() == wbMatchIndex)
+                    .filter(m -> m.getMatchIndex() == wbMatchIndex
+                            && !m.isFinished() && !m.isBye()
+                            && m.getTeamB() == null)
                     .findFirst().orElse(null);
-            if (direct != null && !direct.isFinished() && direct.getTeamB() == null) {
+
+            if (direct != null) {
                 direct.setTeamB(loser);
             } else {
                 for (Match fallback : matches) {
-                    if (!fallback.isFinished() && fallback.getTeamB() == null) {
+                    if (!fallback.isFinished() && !fallback.isBye()
+                            && fallback.getTeamB() == null) {
                         fallback.setTeamB(loser);
                         break;
                     }
@@ -108,7 +119,8 @@ public class MatchService {
         tournamentRepository.save(target);
     }
 
-    private void removeFromLowerBracket(Long fromTournamentId, int wbRoundIndex, Player player) {
+    private void removeFromLowerBracket(Long fromTournamentId,
+                                        int wbRoundIndex, Player player) {
         Tournament from = tournamentRepository.findByIdFull(fromTournamentId).orElseThrow();
         Tournament target = tournamentRepository.findByLevelFull(from.getLevel() + 1).orElse(null);
         if (target == null) return;
@@ -137,7 +149,9 @@ public class MatchService {
     }
 
     void propagateWinner(Tournament t, int fromRoundIdx, int fromMatchIdx) {
-        List<TournamentRound> rounds = t.getRounds().stream().toList();
+        List<TournamentRound> rounds = t.getRounds().stream()
+                .sorted((a, b) -> Integer.compare(a.getRoundIndex(), b.getRoundIndex()))
+                .toList();
         if (fromRoundIdx >= rounds.size() - 1) return;
 
         TournamentRound currentRound = rounds.stream()
@@ -158,6 +172,7 @@ public class MatchService {
         Player winner = current.getWinner();
 
         if (t.getLevel() == 1) {
+            // WB : match i et i+1 → match i/2 du tour suivant
             int nextMatchIdx = fromMatchIdx / 2;
             Match next = nextRound.getMatches().stream()
                     .filter(m -> m.getMatchIndex() == nextMatchIdx)
@@ -165,13 +180,17 @@ public class MatchService {
             if (next == null || next.isFinished()) return;
             if (fromMatchIdx % 2 == 0) next.setTeamA(winner);
             else                        next.setTeamB(winner);
+
         } else {
             if (nextRound.isDropRound()) {
+                // LB tour interne → tour drop : même index
                 Match next = nextRound.getMatches().stream()
-                        .filter(m -> m.getMatchIndex() == fromMatchIdx)
+                        .filter(m -> m.getMatchIndex() == fromMatchIdx
+                                && !m.isFinished())
                         .findFirst().orElse(null);
-                if (next != null && !next.isFinished()) next.setTeamA(winner);
+                if (next != null) next.setTeamA(winner);
             } else {
+                // LB tour drop → tour interne : match i et i+1 → match i/2
                 int nextMatchIdx = fromMatchIdx / 2;
                 Match next = nextRound.getMatches().stream()
                         .filter(m -> m.getMatchIndex() == nextMatchIdx)
@@ -198,9 +217,11 @@ public class MatchService {
                             r.setDropRound(round.isDropRound());
                             r.setMatches(
                                     round.getMatches().stream()
-                                            .sorted((a, b) -> Integer.compare(a.getMatchIndex(), b.getMatchIndex()))
+                                            .sorted((a, b) -> Integer.compare(
+                                                    a.getMatchIndex(), b.getMatchIndex()))
                                             .map(m -> {
-                                                TournamentDto.MatchNodeDto mn = new TournamentDto.MatchNodeDto();
+                                                TournamentDto.MatchNodeDto mn =
+                                                        new TournamentDto.MatchNodeDto();
                                                 mn.setId(m.getId());
                                                 mn.setMatchIndex(m.getMatchIndex());
                                                 mn.setScoreA(m.getScoreA());

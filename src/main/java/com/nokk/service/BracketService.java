@@ -33,7 +33,7 @@ public class BracketService {
         Tournament argent = buildTournament("Argent", 2,
                 buildLoserRounds(nbPlayers, "Or"), true);
         Tournament bronze = buildTournament("Bronze", 3,
-                buildLoserRounds(nbPlayers / 2, "Argent"), true);
+                buildLoserRounds((int) Math.ceil(nbPlayers / 2.0), "Argent"), true);
 
         tournamentRepository.save(or);
         tournamentRepository.save(argent);
@@ -83,40 +83,25 @@ public class BracketService {
         return rounds;
     }
 
-    /**
-     * Structure double-élimination loser bracket :
-     *
-     * R0 (interne) : nbPlayers/2 perdants s'affrontent → nbPlayers/4 matchs
-     * R1 (drop)    : gagnants R0 + nbPlayers/4 nouveaux perdants WB
-     * R2 (interne) : gagnants R1 s'affrontent
-     * R3 (drop)    : gagnants R2 + nouveaux perdants WB
-     * ...
-     * Dernière étape : 1 match = finale loser
-     *
-     * Tours pairs  = internes  (2 gagnants LB → 1)
-     * Tours impairs = drop     (1 gagnant LB + 1 perdant WB)
-     */
     private List<List<Match>> buildLoserRounds(int nbPlayers, String upperName) {
         List<List<Match>> rounds = new ArrayList<>();
 
-        // Nombre de matchs au premier tour interne
-        int matchCount = Math.max(1, nbPlayers / 4);
-        // Nombre de "vagues" de perdants WB encore à intégrer
-        // WB R0 → LB R0, WB R1 → LB R1, WB R2 → LB R3, etc.
-        int wbRound = 1; // prochain round WB dont les perdants arrivent
-
-        // R0 : interne — perdants WB T1 s'affrontent
+        // R0 interne : les perdants WB T1 s'affrontent
+        // nbPlayers perdants → ceil(nbPlayers/2) matchs
+        int matchCount = (int) Math.ceil(nbPlayers / 2.0);
         List<Match> r0 = new ArrayList<>();
         for (int i = 0; i < matchCount; i++) {
             r0.add(new Match(i, "↓ " + upperName + " T1", "↓ " + upperName + " T1"));
         }
         rounds.add(r0);
 
+        int wbRound = 1;
+
         while (matchCount > 1) {
             int roundIdx = rounds.size();
 
             if (roundIdx % 2 == 1) {
-                // Tour drop : chaque gagnant LB précédent reçoit un perdant WB
+                // Tour drop : gagnant LB précédent + perdant WB suivant
                 String dropLabel = "↓ " + upperName + " T" + (wbRound + 1);
                 List<Match> drop = new ArrayList<>();
                 for (int i = 0; i < matchCount; i++) {
@@ -130,9 +115,13 @@ public class BracketService {
                 List<Match> internal = new ArrayList<>();
                 int tNum = rounds.size();
                 for (int i = 0; i < newCount; i++) {
-                    internal.add(new Match(i,
+                    // Si matchCount impair, le dernier match est un bye
+                    boolean isBye = (matchCount % 2 == 1) && (i == newCount - 1);
+                    Match m = new Match(i,
                             "← Gagnant T" + tNum,
-                            "← Gagnant T" + tNum));
+                            isBye ? "BYE" : "← Gagnant T" + tNum);
+                    if (isBye) m.setBye(true);
+                    internal.add(m);
                 }
                 rounds.add(internal);
                 matchCount = newCount;
