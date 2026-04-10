@@ -31,7 +31,7 @@ public class BracketService {
 
         Tournament or     = buildTournament("Or",     1, orRounds, false);
         Tournament argent = buildTournament("Argent", 2,
-                buildLoserRounds((int) Math.ceil(nbPlayers / 4.0), "Or"), true);
+                buildLoserRounds((int) Math.ceil(nbPlayers / 2.0), "Or"), true);
         Tournament bronze = buildTournament("Bronze", 3,
                 buildLoserRounds((int) Math.ceil(nbPlayers / 4.0), "Argent"), true);
 
