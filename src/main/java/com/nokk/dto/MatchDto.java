@@ -31,6 +31,9 @@ public class MatchDto {
 
     private boolean finished = false;
 
+    private Long newTeamAId;
+    private Long newTeamBId;
+
     // ── Getters / Setters ──────────────────────────────────────────────────
     public Long getTournamentId() { return tournamentId; }
     public void setTournamentId(Long tournamentId) { this.tournamentId = tournamentId; }
@@ -55,4 +58,10 @@ public class MatchDto {
 
     public boolean isFinished() { return finished; }
     public void setFinished(boolean finished) { this.finished = finished; }
+
+    public Long getNewTeamAId() { return newTeamAId; }
+    public void setNewTeamAId(Long newTeamAId) { this.newTeamAId = newTeamAId; }
+
+    public Long getNewTeamBId() { return newTeamBId; }
+    public void setNewTeamBId(Long newTeamBId) { this.newTeamBId = newTeamBId; }
 }

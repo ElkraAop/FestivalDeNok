@@ -66,6 +66,17 @@ public class TournamentDto {
         private String  teamAOrigin;
         private String  teamBOrigin;
 
+        // ── Inventaire joueurs ───────────────────────────────────────────
+        private int    teamALives;
+        private int    teamADoubleHits;
+        private String teamAWeapon;
+        private String teamACard;       // null si pas de carte
+
+        private int    teamBLives;
+        private int    teamBDoubleHits;
+        private String teamBWeapon;
+        private String teamBCard;
+
         // ── Getters / Setters ────────────────────────────────────────────
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
@@ -105,5 +116,29 @@ public class TournamentDto {
 
         public String getTeamBOrigin() { return teamBOrigin; }
         public void setTeamBOrigin(String teamBOrigin) { this.teamBOrigin = teamBOrigin; }
+
+        public int getTeamALives() { return teamALives; }
+        public void setTeamALives(int teamALives) { this.teamALives = teamALives; }
+
+        public int getTeamADoubleHits() { return teamADoubleHits; }
+        public void setTeamADoubleHits(int teamADoubleHits) { this.teamADoubleHits = teamADoubleHits; }
+
+        public String getTeamAWeapon() { return teamAWeapon; }
+        public void setTeamAWeapon(String teamAWeapon) { this.teamAWeapon = teamAWeapon; }
+
+        public String getTeamACard() { return teamACard; }
+        public void setTeamACard(String teamACard) { this.teamACard = teamACard; }
+
+        public int getTeamBLives() { return teamBLives; }
+        public void setTeamBLives(int teamBLives) { this.teamBLives = teamBLives; }
+
+        public int getTeamBDoubleHits() { return teamBDoubleHits; }
+        public void setTeamBDoubleHits(int teamBDoubleHits) { this.teamBDoubleHits = teamBDoubleHits; }
+
+        public String getTeamBWeapon() { return teamBWeapon; }
+        public void setTeamBWeapon(String teamBWeapon) { this.teamBWeapon = teamBWeapon; }
+
+        public String getTeamBCard() { return teamBCard; }
+        public void setTeamBCard(String teamBCard) { this.teamBCard = teamBCard; }
     }
 }

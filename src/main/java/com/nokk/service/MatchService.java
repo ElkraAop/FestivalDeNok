@@ -50,8 +50,28 @@ public class MatchService {
             match.setLoserDropped(false);
         }
 
-        match.setScoreA(dto.getScoreA());
-        match.setScoreB(dto.getScoreB());
+        if (dto.getNewTeamAId() != null) {
+            Player p = playerRepository.findById(dto.getNewTeamAId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Joueur introuvable : " + dto.getNewTeamAId()));
+            match.setTeamA(p);
+        }
+        if (dto.getNewTeamBId() != null) {
+            Player p = playerRepository.findById(dto.getNewTeamBId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Joueur introuvable : " + dto.getNewTeamBId()));
+            match.setTeamB(p);
+        }
+
+        // Match solo (teamB absent) : forcer teamA gagnante
+        if (dto.isFinished() && match.getTeamA() != null && match.getTeamB() == null) {
+            match.setScoreA(1);
+            match.setScoreB(0);
+            match.setBye(true);
+        } else {
+            match.setScoreA(dto.getScoreA());
+            match.setScoreB(dto.getScoreB());
+        }
         match.setFinished(dto.isFinished());
 
         if (dto.isFinished() && match.getLoser() != null && !match.isLoserDropped()) {
@@ -232,12 +252,26 @@ public class MatchService {
                                                 mn.setTeamAOrigin(m.getTeamAOrigin());
                                                 mn.setTeamBOrigin(m.getTeamBOrigin());
                                                 if (m.getTeamA() != null) {
-                                                    mn.setTeamAId(m.getTeamA().getId());
-                                                    mn.setTeamAName(m.getTeamA().getName());
+                                                    Player a = m.getTeamA();
+                                                    mn.setTeamAId(a.getId());
+                                                    mn.setTeamAName(a.getName());
+                                                    mn.setTeamALives(a.getLives());
+                                                    mn.setTeamADoubleHits(a.getDoubleHits());
+                                                    mn.setTeamAWeapon(a.getWeapon().name());
+                                                    if (a.hasCard()) {
+                                                        mn.setTeamACard(a.getCardSuit().name() + " " + a.getCardValue());
+                                                    }
                                                 }
                                                 if (m.getTeamB() != null) {
-                                                    mn.setTeamBId(m.getTeamB().getId());
-                                                    mn.setTeamBName(m.getTeamB().getName());
+                                                    Player b = m.getTeamB();
+                                                    mn.setTeamBId(b.getId());
+                                                    mn.setTeamBName(b.getName());
+                                                    mn.setTeamBLives(b.getLives());
+                                                    mn.setTeamBDoubleHits(b.getDoubleHits());
+                                                    mn.setTeamBWeapon(b.getWeapon().name());
+                                                    if (b.hasCard()) {
+                                                        mn.setTeamBCard(b.getCardSuit().name() + " " + b.getCardValue());
+                                                    }
                                                 }
                                                 return mn;
                                             }).toList()

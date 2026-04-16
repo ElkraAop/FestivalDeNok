@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -50,6 +51,7 @@ public class BracketService {
     }
 
     private List<List<Match>> buildOrRounds(List<Player> players) {
+        Collections.shuffle(players);
         List<List<Match>> rounds = new ArrayList<>();
         List<Match> r1 = new ArrayList<>();
         for (int i = 0; i < players.size(); i += 2) {
