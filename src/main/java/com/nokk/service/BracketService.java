@@ -1,7 +1,6 @@
 package com.nokk.service;
 
 import com.nokk.model.*;
-import com.nokk.repository.MatchRepository;
 import com.nokk.repository.TournamentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,14 +13,11 @@ import java.util.List;
 public class BracketService {
 
     private final TournamentRepository tournamentRepository;
-    private final MatchRepository      matchRepository;
     private final MatchService         matchService;
 
     public BracketService(TournamentRepository tournamentRepository,
-                          MatchRepository matchRepository,
                           MatchService matchService) {
         this.tournamentRepository = tournamentRepository;
-        this.matchRepository      = matchRepository;
         this.matchService         = matchService;
     }
 
@@ -35,35 +31,21 @@ public class BracketService {
         Tournament bronze = buildTournament("Bronze", 3,
                 buildLoserRounds((int) Math.ceil(nbPlayers / 2.0), "Argent"), true);
 
-        or     = tournamentRepository.saveAndFlush(or);
-        argent = tournamentRepository.saveAndFlush(argent);
-        bronze = tournamentRepository.saveAndFlush(bronze);
+        tournamentRepository.save(or);
+        tournamentRepository.save(argent);
+        tournamentRepository.save(bronze);
 
-        Long orId     = or.getId();
-        Long argentId = argent.getId();
-        Long bronzeId = bronze.getId();
-
-        for (Long id : List.of(orId, argentId, bronzeId)) {
-            Tournament t = tournamentRepository.findByIdFull(id).orElseThrow();
-            for (TournamentRound round : t.getRounds()) {
-                for (Match match : round.getMatches()) {
-                    if (match.isBye()
-                            && match.getTeamA() != null
-                            && match.isFinished()
-                            && match.getWinner() != null) {
-                        matchService.propagateWinner(t,
-                                round.getRoundIndex(),
-                                match.getMatchIndex());
-                        tournamentRepository.saveAndFlush(t);
-                    }
-                }
-            }
+        // Si nombre de joueurs impair : un bye en R0 de Or (dernier match), propager le gagnant
+        if (nbPlayers % 2 == 1) {
+            Tournament orFull = tournamentRepository.findByIdFull(or.getId()).orElseThrow();
+            matchService.propagateWinner(orFull, 0, nbPlayers / 2);
+            tournamentRepository.save(orFull);
         }
 
         return List.of(
-                tournamentRepository.findByIdFull(orId).orElseThrow(),
-                tournamentRepository.findByIdFull(argentId).orElseThrow(),
-                tournamentRepository.findByIdFull(bronzeId).orElseThrow()
+                tournamentRepository.findByIdFull(or.getId()).orElseThrow(),
+                tournamentRepository.findByIdFull(argent.getId()).orElseThrow(),
+                tournamentRepository.findByIdFull(bronze.getId()).orElseThrow()
         );
     }
 
