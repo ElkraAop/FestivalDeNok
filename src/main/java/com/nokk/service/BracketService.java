@@ -31,30 +31,38 @@ public class BracketService {
 
         Tournament or     = buildTournament("Or",     1, orRounds, false);
         Tournament argent = buildTournament("Argent", 2,
-                buildLoserRounds((int) Math.ceil(nbPlayers / 2.0), "Or"), true);
+                buildLoserRounds(nbPlayers, "Or"), true);
         Tournament bronze = buildTournament("Bronze", 3,
-                buildLoserRounds((int) Math.ceil(nbPlayers / 4.0), "Argent"), true);
+                buildLoserRounds((int) Math.ceil(nbPlayers / 2.0), "Argent"), true);
+
 
         tournamentRepository.save(or);
         tournamentRepository.save(argent);
         tournamentRepository.save(bronze);
 
-        for (Tournament tournament : List.of(or, argent, bronze)) {
+        Tournament orFull     = tournamentRepository.findByIdFull(or.getId()).orElseThrow();
+        Tournament argentFull = tournamentRepository.findByIdFull(argent.getId()).orElseThrow();
+        Tournament bronzeFull = tournamentRepository.findByIdFull(bronze.getId()).orElseThrow();
+
+        for (Tournament tournament : List.of(orFull, argentFull, bronzeFull)) {
             for (TournamentRound round : tournament.getRounds()) {
                 for (Match match : round.getMatches()) {
-                    if (match.isBye() && match.getTeamA() != null) {
-                        match.setScoreA(1);
-                        match.setScoreB(0);
-                        match.setFinished(true);
-                        matchRepository.save(match);
+                    if (match.isBye() && match.getTeamA() != null
+                            && match.isFinished() && match.getWinner() != null) {
                         matchService.propagateWinner(tournament,
                                 round.getRoundIndex(),
                                 match.getMatchIndex());
+                        tournamentRepository.save(tournament);
                     }
                 }
             }
         }
-        return List.of(or, argent, bronze);
+
+        return List.of(
+                tournamentRepository.findByIdFull(or.getId()).orElseThrow(),
+                tournamentRepository.findByIdFull(argent.getId()).orElseThrow(),
+                tournamentRepository.findByIdFull(bronze.getId()).orElseThrow()
+        );
     }
 
     private List<List<Match>> buildOrRounds(List<Player> players) {
@@ -66,7 +74,10 @@ public class BracketService {
             if (i + 1 < players.size()) {
                 m.setTeamB(players.get(i + 1));
             } else {
+                // Bye : teamB null, bye=true, scoreA=1 pour que getWinner() retourne teamA
                 m.setBye(true);
+                m.setScoreA(1);
+                m.setScoreB(0);
                 m.setFinished(true);
             }
             r1.add(m);
@@ -86,8 +97,6 @@ public class BracketService {
     private List<List<Match>> buildLoserRounds(int nbPlayers, String upperName) {
         List<List<Match>> rounds = new ArrayList<>();
 
-        // R0 interne : les perdants WB T1 s'affrontent
-        // nbPlayers perdants → ceil(nbPlayers/2) matchs
         int matchCount = (int) Math.ceil(nbPlayers / 2.0);
         List<Match> r0 = new ArrayList<>();
         for (int i = 0; i < matchCount; i++) {
