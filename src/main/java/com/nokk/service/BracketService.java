@@ -35,33 +35,35 @@ public class BracketService {
         Tournament bronze = buildTournament("Bronze", 3,
                 buildLoserRounds((int) Math.ceil(nbPlayers / 2.0), "Argent"), true);
 
+        or     = tournamentRepository.saveAndFlush(or);
+        argent = tournamentRepository.saveAndFlush(argent);
+        bronze = tournamentRepository.saveAndFlush(bronze);
 
-        tournamentRepository.save(or);
-        tournamentRepository.save(argent);
-        tournamentRepository.save(bronze);
+        Long orId     = or.getId();
+        Long argentId = argent.getId();
+        Long bronzeId = bronze.getId();
 
-        Tournament orFull     = tournamentRepository.findByIdFull(or.getId()).orElseThrow();
-        Tournament argentFull = tournamentRepository.findByIdFull(argent.getId()).orElseThrow();
-        Tournament bronzeFull = tournamentRepository.findByIdFull(bronze.getId()).orElseThrow();
-
-        for (Tournament tournament : List.of(orFull, argentFull, bronzeFull)) {
-            for (TournamentRound round : tournament.getRounds()) {
+        for (Long id : List.of(orId, argentId, bronzeId)) {
+            Tournament t = tournamentRepository.findByIdFull(id).orElseThrow();
+            for (TournamentRound round : t.getRounds()) {
                 for (Match match : round.getMatches()) {
-                    if (match.isBye() && match.getTeamA() != null
-                            && match.isFinished() && match.getWinner() != null) {
-                        matchService.propagateWinner(tournament,
+                    if (match.isBye()
+                            && match.getTeamA() != null
+                            && match.isFinished()
+                            && match.getWinner() != null) {
+                        matchService.propagateWinner(t,
                                 round.getRoundIndex(),
                                 match.getMatchIndex());
-                        tournamentRepository.save(tournament);
+                        tournamentRepository.saveAndFlush(t);
                     }
                 }
             }
         }
 
         return List.of(
-                tournamentRepository.findByIdFull(or.getId()).orElseThrow(),
-                tournamentRepository.findByIdFull(argent.getId()).orElseThrow(),
-                tournamentRepository.findByIdFull(bronze.getId()).orElseThrow()
+                tournamentRepository.findByIdFull(orId).orElseThrow(),
+                tournamentRepository.findByIdFull(argentId).orElseThrow(),
+                tournamentRepository.findByIdFull(bronzeId).orElseThrow()
         );
     }
 
