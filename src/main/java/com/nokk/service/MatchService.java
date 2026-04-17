@@ -201,6 +201,20 @@ public class MatchService {
             if (fromMatchIdx % 2 == 0) next.setTeamA(winner);
             else                        next.setTeamB(winner);
 
+            // Cascade bye : si le match frère (index pair+1) n'existe pas dans le tour courant,
+            // teamB ne sera jamais fourni → bye structurel sur le match destination
+            if (fromMatchIdx % 2 == 0) {
+                boolean siblingExists = currentRound.getMatches().stream()
+                        .anyMatch(m -> m.getMatchIndex() == fromMatchIdx + 1);
+                if (!siblingExists && !next.isFinished()) {
+                    next.setScoreA(1);
+                    next.setScoreB(0);
+                    next.setFinished(true);
+                    next.setBye(true);
+                    propagateWinner(t, fromRoundIdx + 1, nextMatchIdx);
+                }
+            }
+
         } else {
             if (nextRound.isDropRound()) {
                 // LB tour interne → tour drop : même index
