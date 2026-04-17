@@ -27,10 +27,12 @@ public class BracketService {
         int nbPlayers = players.size();
 
         Tournament or     = buildTournament("Or",     1, orRounds, false);
+        int argentT1 = (int) Math.ceil(nbPlayers / 2.0);
+        int bronzeT1 = (int) Math.ceil(argentT1 / 2.0);
         Tournament argent = buildTournament("Argent", 2,
-                buildLoserRounds(nbPlayers, "Or"), true);
+                buildLoserRounds(argentT1, "Or"), true);
         Tournament bronze = buildTournament("Bronze", 3,
-                buildLoserRounds((int) Math.ceil(nbPlayers / 2.0), "Argent"), true);
+                buildLoserRounds(bronzeT1, "Argent"), true);
 
         tournamentRepository.save(or);
         tournamentRepository.save(argent);
